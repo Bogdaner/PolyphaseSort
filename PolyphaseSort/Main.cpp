@@ -1,8 +1,13 @@
 #include <iostream>
-#include "FileOperations.h"
+#include <ctime>
+#include "Record.h"
+#include "PolyphaseSort.h"
+
 
 int main(void)
 {
-	FileOperations f;
+	srand(time(NULL));
+	PolyphaseSort<Record> sort{10};
+	sort.sort();
 	return 0;
 }

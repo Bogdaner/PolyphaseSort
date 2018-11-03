@@ -1,37 +1,34 @@
 #pragma once
+#include "Record.h"
 #include <iostream>
 #include <fstream>
-#include <vector>
+#include <array>
+#include <string>
 
-struct Record
-{
-	float p_a;
-	float p_b;
-	float p_ab;
-	void random()
-	{
-		p_a = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-		p_b = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-		p_ab = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-	}
-};
-
+template<typename T>
 class FileOperations
 {
 public:
-	FileOperations();
-	Record get_next_record();
-	void save_record(Record r);
-private:
+	FileOperations() = default;
+	FileOperations(std::string s);
+	FileOperations(int i); // generate file with i records
+	virtual T get_next_record();
+	virtual void save_record(const T r);
 	void save_buffer();
-	void save_to_buffer(const Record r);
-	void generate_file();
-	std::fstream file;
-	std::vector<Record> buf;
-	std::vector<std::vector<Record>> tape_buf;
-	static const unsigned int t; // number of tapes
-	static const unsigned int B; // read/save unit from file (bytes)
-	static const unsigned int R; // record size in bytes
+	void print_file();
+	void return_to_beg();
+	bool end_of_file();
+	std::string file_name;
+private:
+	static constexpr unsigned int R = sizeof(T); // record size in bytes
+	static constexpr unsigned int n = 100; // number of records read/save
+	static constexpr unsigned int B = R * n; // read/save unit from file (bytes)
 
+	unsigned int saves;
+	void fill_buffer();
+	void save_to_buffer(const T r);
 protected:
+	std::fstream file;
+	std::array<T, n> buf;
+	unsigned int p;
 };
