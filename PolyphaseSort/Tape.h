@@ -1,5 +1,7 @@
 #pragma once
 #include "FileOperations.h"
+#include <chrono>
+#include <thread>
 
 template<typename T>
 class Tape : public FileOperations<T>

@@ -1,31 +1,70 @@
 #include "PolyphaseSort.h"
 
-template PolyphaseSort<Record>::PolyphaseSort(int);
+template PolyphaseSort<Record>::PolyphaseSort(long long unsigned int, bool);
+template PolyphaseSort<Record>::PolyphaseSort(std::string, bool);
+template PolyphaseSort<Record>::~PolyphaseSort();
 template void PolyphaseSort<Record>::initial_distribution(void);
 template void PolyphaseSort<Record>::merge(void);
 template void PolyphaseSort<Record>::sort();
 
 template<typename T>
-PolyphaseSort<T>::PolyphaseSort(int rec) : file{ rec }
+PolyphaseSort<T>::PolyphaseSort(long long unsigned int rec, bool p) : file{ rec }, print{ p }
 {
-	for (int i = 0; i < t; ++i)
-		tapes[i] = std::make_unique<Tape<T>>("Tape " + std::to_string(i));
-
+	init_tapes();
 	std::cout << file.file_name << ":\n";
-	file.print_file();
+	if(print)
+		file.print_file();
+}
+
+template<typename T>
+PolyphaseSort<T>::PolyphaseSort(std::string fname, bool p) : file{ fname }, print{ p }
+{
+	init_tapes();
+	std::cout << file.file_name << ":\n";
+	if (print)
+		file.print_file();
+}
+
+template<typename T>
+PolyphaseSort<T>::~PolyphaseSort()
+{
+	for(int i = 0; i < t; ++i)
+		if (tapes[i]->series == 1)
+		{
+			tapes[i]->file.close();
+			std::rename(tapes[i]->file_name.c_str(), ("s_" + file.file_name).c_str());
+		}
 }
 
 template<typename T>
 void PolyphaseSort<T>::sort()
 {
 	int phase = 1;
+	std::cout << "\n\nInitial distribution\n\n";
 	initial_distribution();
+	long long unsigned int series = get_number_of_series();
+	if (print)
+		print_tapes();
 	while (get_number_of_series() != 1)
 	{
-		std::cout << "Phase:" << phase++ << "\n";
+		std::cout << "Phase " << phase++ << "\n";
 		std::cout << "------------------------------------------------------------------------\n";
+
 		merge();
+
+		if (print)
+			print_tapes();
 	}
+	std::cout << "\nSeries: " << series << "\n";
+	std::cout << "Phases: " << phase - 1 << "\n";
+	print_disk_op();
+}
+
+template<typename T>
+void PolyphaseSort<T>::init_tapes()
+{
+	for (int i = 0; i < t; ++i)
+		tapes[i] = std::make_unique<Tape<T>>("Tape " + std::to_string(i));
 }
 
 template<typename T>
@@ -61,22 +100,20 @@ void PolyphaseSort<T>::initial_distribution()
 	series_saved++;
 	tapes[c]->series++;
 	tapes[c]->dummies = tapes[prev_c]->series - series_saved;
-
 	for (int i = 1; i < t; ++i)
 	{
 		tapes[i]->save_buffer();
 		tapes[i]->return_to_beg();
 	}
 	set_previous_to_min();
-
-	print_tapes();
 }
 
 template<typename T>
 void PolyphaseSort<T>::merge()
 {
-	const unsigned int s = tape_for_saving(); // s = tape for saving 
-	const unsigned int m = shortest_tape();  // m = tape with smallest number of series != 0
+	const unsigned int s = get_tape_for_saving(); // s = tape for saving 
+	const unsigned int m = get_shortest_tape();  // m = tape with smallest number of series != 0
+	const unsigned int sa = tapes[m]->series;
 
 	int d = tapes[get_dummies_tape()]->dummies;
 	if (d == 0)
@@ -84,30 +121,24 @@ void PolyphaseSort<T>::merge()
 
 	std::vector<std::pair<T, int>> v2;
 	std::vector<std::pair<T, int>> v;
-	std::vector<int> end{};
-
 	T min;
 	min.min();
 	for (int i = 0; i < t; ++i)
 		if (i != s)
 		{
 			if (tapes[i]->prev.compare(min))
-			{
 				v.push_back(std::make_pair(tapes[i]->prev, i));
-				if (tapes[i]->end_of_file())
-					end.push_back(i);
-			}
 			else if (tapes[i]->dummies == 0)
 				v.push_back(std::make_pair(tapes[i]->get_next_record(), i));
 		}
 
-	while (!tapes[m]->end_of_file() || tapes[m]->series != 0 || v2.size() != t - 1)
+	while (!tapes[m]->end_of_file() || tapes[s]->series != sa)
 	{
 		if (v.size() == 0) // end of series
 		{
-			if (tapes[m]->end_of_file() && tapes[m]->series == 0)
-				break;
 			tapes[s]->series++;
+			if (tapes[s]->series == sa)
+				break;
 			if (d > 0)
 				d--;
 			v = v2;
@@ -118,55 +149,56 @@ void PolyphaseSort<T>::merge()
 			}
 			v2.clear();
 		}
-
 		int to_save = get_min_rec(v);
 		tapes[s]->save_record(v[to_save].first);
 
-		auto f = std::find(end.begin(), end.end(), v[to_save].second);
-		if (f != end.end())
-		{
-			tapes[*f]->series--;
-			v2.push_back(std::make_pair(v[to_save].first, *f));
-			v.erase(v.begin() + to_save);
-			end.erase(f);
-			continue;
-		}
-
 		int next = v[to_save].second;
-		tapes[next]->prev = v[to_save].first;
+		if (next != -1)
+			tapes[next]->prev = v[to_save].first;
 		v.erase(v.begin() + to_save);
+		if (next == -1)
+			continue;
 
 		T r = tapes[next]->get_next_record();
 		if (!tapes[next]->prev.compare(r))   // min <= r
 		{
-			v.push_back(std::make_pair(r, next));
 			if (tapes[next]->end_of_file())
-				end.push_back(next);
+				v.push_back(std::make_pair(r, -1));
+			else
+				v.push_back(std::make_pair(r, next));
 		}
 		else
 		{
+			tapes[next]->series--;
 			if (tapes[next]->end_of_file())
-			{
-				v.push_back(std::make_pair(r, next));
-				end.push_back(next);
-			}
+				v2.push_back(std::make_pair(r, -1));
 			else
-			{
-				tapes[next]->series--;
 				v2.push_back(std::make_pair(r, next));
-			}
 		}
 	}
 	for (std::pair<T, int> x : v2)
+		if (x.second != -1)
 			tapes[x.second]->prev = x.first;
 
 	tapes[get_dummies_tape()]->dummies = 0;
-	tapes[s]->series++;
 	tapes[s]->save_buffer();
 	tapes[s]->return_to_beg();
-	tapes[m]->clear();
+	for (int i = 0; i < t; ++i)
+	{
+		if (tapes[i]->end_of_file())
+			tapes[i]->clear();
+	}
+}
 
-	print_tapes();
+template<typename T>
+void PolyphaseSort<T>::print_disk_op() const
+{
+	long long unsigned int sum = 0;
+	for (int i = 0; i < t; ++i)
+		sum += tapes[i]->disk_operations;
+
+	sum += file.disk_operations;
+	std::cout << "Disk operations: " << sum << "\n";
 }
 
 template<typename T>
@@ -186,14 +218,15 @@ void PolyphaseSort<T>::print_tapes()
 			else
 				std::cout << "\n";
 		}
+		std::cout << "\n";
 	}
 	std::cout << "------------------------------------------------------------------------\n";
 }
 
 template<typename T>
-unsigned int PolyphaseSort<T>::get_number_of_series() const
+long long unsigned int PolyphaseSort<T>::get_number_of_series() const
 {
-	unsigned int sum = 0;
+	long long unsigned int sum = 0;
 	for (int i = 0; i < t; ++i)
 		sum += tapes[i]->series;
 	return sum;
@@ -209,23 +242,24 @@ unsigned int PolyphaseSort<T>::get_dummies_tape() const
 }
 
 template<typename T>
-unsigned int PolyphaseSort<T>::tape_for_saving() const
+unsigned int PolyphaseSort<T>::get_tape_for_saving() const
 {
 	for (int i = 0; i < t; ++i)
 		if (tapes[i]->series == 0)
 		{
 			return i;
 		}
+	return 0;
 }
 
 template<typename T>
-unsigned int PolyphaseSort<T>::shortest_tape() const
+unsigned int PolyphaseSort<T>::get_shortest_tape() const
 {
-	unsigned int m = tape_for_saving();
+	unsigned int m = get_tape_for_saving();
 	m = (m + 1) % t;
 	for (int i = 0; i < t; ++i)
 	{
-		if (tapes[i]->series + tapes[i]->dummies < tapes[m]->series + tapes[m]->dummies && i != tape_for_saving())
+		if (tapes[i]->series + tapes[i]->dummies < tapes[m]->series + tapes[m]->dummies && i != get_tape_for_saving())
 			m = i;
 	}
 	return m;

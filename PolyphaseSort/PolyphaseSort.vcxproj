@@ -126,9 +126,6 @@
     <ClInclude Include="Record.h" />
     <ClInclude Include="Tape.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="RecordsDef.inl" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

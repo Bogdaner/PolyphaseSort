@@ -1,15 +1,26 @@
 #include "FileOperations.h"
-#include "RecordsDef.inl"
+
+template FileOperations<Record>::FileOperations(long long unsigned int);
+template FileOperations<Record>::FileOperations(std::string);
+template Record FileOperations<Record>::get_next_record();
+template void FileOperations<Record>::save_record(Record r);
+template void FileOperations<Record>::print_file(void);
+template void FileOperations<Record>::return_to_beg(void);
+template bool FileOperations<Record>::end_of_file();
+template void FileOperations<Record>::fill_buffer(void);
+template void FileOperations<Record>::save_buffer(void);
+template void FileOperations<Record>::save_to_buffer(const Record r);
 
 template<typename T>
-FileOperations<T>::FileOperations(std::string s) : p{ 0 }, file_name{ s }, file(file_name, file.binary | file.out | file.in)
+FileOperations<T>::FileOperations(std::string s) : p{ 0 }, file_name{ s }, file(file_name, file.binary | file.out | file.in),
+disk_operations{ 0 }
 {
 	if (!file.good())
 		std::cout << "File creation failed\n";
 }
 
 template<typename T>
-FileOperations<T>::FileOperations(int i) : p{ 0 }
+FileOperations<T>::FileOperations(long long unsigned int i) : p{ 0 }, disk_operations{ 0 }
 {
 	using namespace std;
 
@@ -56,7 +67,10 @@ void FileOperations<T>::save_record(const T r)
 template<typename T>
 void FileOperations<T>::print_file()
 {
+	if (end_of_file())
+		return;
 	// remember some stuff
+	long long unsigned int disk = disk_operations;
 	int pos = file.tellp();
 	int count = file.gcount();
 	std::array<T, n> tmp = buf;
@@ -83,6 +97,7 @@ void FileOperations<T>::print_file()
 	file.read(reinterpret_cast<char *>(&buf), count); // restore gcount
 	file.clear();
 
+	disk_operations = disk;
 	p = tmp_p;
 	buf = tmp;
 	file.seekp(pos);
@@ -111,6 +126,7 @@ void FileOperations<T>::fill_buffer()
 {
 	file.read(reinterpret_cast<char *>(&buf), B);
 	p = 0;
+	disk_operations++;
 }
 
 template<typename T>
@@ -119,6 +135,7 @@ void FileOperations<T>::save_buffer()
 	file.write(reinterpret_cast<char *>(&buf), p * R);
 	file.flush();
 	p = 0;
+	disk_operations++;
 	buf = std::array<T, n>();
 }
 

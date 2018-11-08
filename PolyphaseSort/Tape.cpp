@@ -24,9 +24,9 @@ Tape<T>::Tape(std::string s) : series{ 0 }, dummies{ 0 }, prev{ T().min() }
 template<typename T>
 void Tape<T>::clear()
 {
+	series = 0;
 	prev.min();
 	this->file.close();
-	std::remove(this->file_name.c_str());
 	this->file.open(this->file_name, std::ios::binary | std::ios::out | std::ios::in | std::ios::trunc);
 	if (!this->file.good())
 		std::cout << "File creation failed\n";
@@ -35,6 +35,11 @@ void Tape<T>::clear()
 template<typename T>
 Tape<T>::~Tape()
 {
-	//this->file.close();
-	//std::remove(this->file_name.c_str());
+	if (series == 0)
+	{
+		this->file.close();
+		std::remove(this->file_name.c_str());
+	}
+	//else
+	//	std::rename(this->file_name.c_str(), "result.bin");
 }
