@@ -114,6 +114,10 @@ void PolyphaseSort<T>::merge()
 	const unsigned int s = get_tape_for_saving(); // s = tape for saving 
 	const unsigned int m = get_shortest_tape();  // m = tape with smallest number of series != 0
 	const unsigned int sa = tapes[m]->series;
+	bool clear_all = true;
+	for (int i = 0; i < t; ++i)
+		if (tapes[i]->series != 1 && i != s)
+			clear_all = false;
 
 	int d = tapes[get_dummies_tape()]->dummies;
 	if (d == 0)
@@ -127,7 +131,12 @@ void PolyphaseSort<T>::merge()
 		if (i != s)
 		{
 			if (tapes[i]->prev.compare(min))
-				v.push_back(std::make_pair(tapes[i]->prev, i));
+			{
+				if(!tapes[i]->end_of_file())
+					v.push_back(std::make_pair(tapes[i]->prev, i));
+				else
+					v.push_back(std::make_pair(tapes[i]->prev, -1));
+			}
 			else if (tapes[i]->dummies == 0)
 				v.push_back(std::make_pair(tapes[i]->get_next_record(), i));
 		}
@@ -171,7 +180,10 @@ void PolyphaseSort<T>::merge()
 		{
 			tapes[next]->series--;
 			if (tapes[next]->end_of_file())
+			{
 				v2.push_back(std::make_pair(r, -1));
+				tapes[next]->prev = r;
+			}
 			else
 				v2.push_back(std::make_pair(r, next));
 		}
@@ -183,11 +195,15 @@ void PolyphaseSort<T>::merge()
 	tapes[get_dummies_tape()]->dummies = 0;
 	tapes[s]->save_buffer();
 	tapes[s]->return_to_beg();
-	for (int i = 0; i < t; ++i)
+
+	if (clear_all)
 	{
-		if (tapes[i]->end_of_file())
-			tapes[i]->clear();
+		for (int i = 0; i < t; ++i)
+			if (i != s)
+				tapes[i]->clear();
 	}
+	else
+		tapes[m]->clear();
 }
 
 template<typename T>
